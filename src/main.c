@@ -13,11 +13,11 @@
 #define SCREEN_WIDTH     700
 #define SCREEN_HEIGHT    700
 
-#define CELL_SIZE        5
+#define CELL_SIZE        2
 #define GRID_WIDTH       SCREEN_WIDTH / CELL_SIZE
 #define GRID_HEIGHT      SCREEN_HEIGHT / CELL_SIZE
 
-#define FPS              30
+#define FPS              240
 #define BACKGROUND_COLOR BLACK
 // __Constants
 
@@ -34,6 +34,8 @@ ObjectType current_material = SAND;
 bool mouseDown = false;
 i32 prevMouseX = -1;
 i32 prevMouseY = -1;
+
+i32 BRUSH_RADIUS = 7;
 
 void init_sim(void) {
     srand(time(NULL));
@@ -61,37 +63,84 @@ void step_sim(void) {
                     Object* obj_down_right = &GRID_AT(x + 1, y); 
 
                     bool left_okay =  x != 0 && 
-                        obj_down_left->type != STONE && obj_down_left->type != SAND &&
-                        obj_left->type != STONE && obj_left->type != SAND;
-                    bool right_okay = x != GRID_WIDTH-1 && 
-                        obj_down_right->type != STONE && obj_down_right->type != SAND &&
-                        obj_right->type != STONE && obj_right->type != SAND;
+                        obj_down_left->type == None &&
+                        obj_left->type == None;
+                    bool right_okay =  x != GRID_WIDTH-1 && 
+                        obj_down_right->type == None &&
+                        obj_right->type == None;
 
                     if (obj_down->type == None) {
                         *obj_down = *obj;
                         CLEAR_GRID_AT(x, y);
+                    } else if (obj_down->type == WATER) {
+                        obj->type = WATER;
+                        obj_down->type = SAND;
                     }
 
-                    if (obj_down->type == STONE || obj_down->type == SAND) { 
+                    if (left_okay && right_okay) {
+                        if (rand()%2) {*obj_down_left = *obj;} 
+                        else {*obj_down_right = *obj;} 
 
-                        if (left_okay && right_okay) {
-                            if (rand()%2) {*obj_down_left = *obj;} 
-                            else {*obj_down_right = *obj;} 
-
-                            CLEAR_GRID_AT(x, y);
-                        } else if (left_okay) {
-                            *obj_down_left = *obj; 
-                            CLEAR_GRID_AT(x, y);
-                        } else if (right_okay) {
-                            *obj_down_right = *obj; 
-                            CLEAR_GRID_AT(x, y);
-                        }
+                        CLEAR_GRID_AT(x, y);
+                    } else if (left_okay) {
+                        *obj_down_left = *obj; 
+                        CLEAR_GRID_AT(x, y);
+                    } else if (right_okay) {
+                        *obj_down_right = *obj; 
+                        CLEAR_GRID_AT(x, y);
                     }
+                   
 
                     break;
                 }
                 case STONE:
                     break;
+                case WATER: {
+                    if (y == GRID_HEIGHT - 1) {
+                        break;
+                    }
+
+                    Object* obj_down = &GRID_AT(x, y + 1);
+                    Object* obj_down_left = &GRID_AT(x - 1, y + 1);
+                    Object* obj_down_right = &GRID_AT(x + 1, y + 1);
+
+                    if (obj_down->type == None) {*obj_down = *obj; CLEAR_GRID_AT(x, y); break;}
+
+                    bool down_left_okay =  x != 0 && obj_down_left->type == None;
+                    bool down_right_okay =  x != GRID_WIDTH-1 && obj_down_right->type == None;
+
+                    if (down_left_okay && down_right_okay) {
+                        if (rand()%2) {*obj_down_left = *obj;}
+                        else {*obj_down_right = *obj;}
+                        CLEAR_GRID_AT(x, y);   
+                    } else if (down_left_okay) {
+                        *obj_down_left = *obj; 
+                        CLEAR_GRID_AT(x, y);
+                    } else if (down_right_okay) {
+                        *obj_down_right = *obj; 
+                        CLEAR_GRID_AT(x, y);
+                    }
+
+                    Object* obj_left = &GRID_AT(x - 1, y);
+                    Object* obj_right = &GRID_AT(x + 1, y);
+
+                    bool left_okay =  x != 0 && obj_left->type == None;
+                    bool right_okay =  x != GRID_WIDTH-1 && obj_right->type == None;
+
+                    if (left_okay && right_okay) {
+                        if (rand()%2) {*obj_left = *obj;}
+                        else {*obj_right = *obj;}
+                        CLEAR_GRID_AT(x, y);
+                    } else if (left_okay) {
+                        *obj_left = *obj;
+                        CLEAR_GRID_AT(x, y);
+                    } else if (right_okay) {
+                        *obj_right = *obj;
+                        CLEAR_GRID_AT(x, y);
+                    }
+
+                    break;
+                }
                 default:
                     break;
             }
@@ -100,11 +149,32 @@ void step_sim(void) {
 }
 
 void handleMouseDrag(i32 x, i32 y) {
-    if (x >= 0 && x < GRID_WIDTH && y >= 0 && y < GRID_HEIGHT) {
-        if (GRID_AT(x, y).type != None) {
-            return;
+    // if (x >= 0 && x < GRID_WIDTH && y >= 0 && y < GRID_HEIGHT) {
+    if (x < 0 || x >= GRID_WIDTH || y < 0 || y >= GRID_HEIGHT) {
+        return;
+    }
+
+    for (i32 c_y = -BRUSH_RADIUS; c_y <= BRUSH_RADIUS; ++c_y) {
+        for (i32 c_x = -BRUSH_RADIUS; c_x <= BRUSH_RADIUS; ++c_x) {
+            if (c_y * c_y + c_x * c_x > BRUSH_RADIUS * BRUSH_RADIUS) {
+                continue;;
+            }
+
+            if (x + c_x < 0 || x + c_x >= GRID_WIDTH || y + c_y < 0 || y + c_y >= GRID_HEIGHT) {
+                continue;
+            }
+
+            if (rand() % 7 == 0) {
+                continue;
+            }
+
+            Object* obj = &GRID_AT(x+c_x, y+c_y); 
+            if (obj->type == None) {
+                obj->type = current_material;
+            } else if (current_material == None && obj->type != None) {
+                obj->type = None;
+            }
         }
-        GRID_AT(x, y) = (Object){current_material, 0};
     }
 }
 
@@ -140,7 +210,7 @@ int main(void) {
     }
 
     bool quit = false;
-    bool paused = true;
+    bool paused = false;
     SDL_Event e;
     u32 frameStart, frameTime;
     const u32 frameDelay = 1000/FPS;
@@ -193,9 +263,31 @@ int main(void) {
                         case SDLK_s:
                             current_material = STONE;
                             break;
+                        case SDLK_w:
+                            current_material = WATER;
+                            break;
+                        case SDLK_x:
+                            current_material = None;
+                            break;
                         case SDLK_RIGHT:
                             step_sim();
                             break;
+                        case SDLK_UP:
+                            if (BRUSH_RADIUS + 1 >= 30) { BRUSH_RADIUS = 29;}
+                            BRUSH_RADIUS++;
+                            break;
+                        case SDLK_DOWN:
+                            if (BRUSH_RADIUS - 1 <= 0) { BRUSH_RADIUS = 1; }
+                            BRUSH_RADIUS--;
+                            break;
+                        case SDLK_BACKSPACE: {
+                            for (i32 i = 0; i < GRID_HEIGHT; ++i) {
+                                for (i32 j = 0; j < GRID_WIDTH; ++j) {
+                                    CLEAR_GRID_AT(j, i);
+                                }
+                            }
+                        }
+                        break;
                         case SDLK_SPACE:
                             paused = !paused;
                             break;

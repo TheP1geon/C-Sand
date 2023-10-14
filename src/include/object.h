@@ -8,16 +8,13 @@ typedef enum {
     None = 0,
     SAND,
     STONE,
+    WATER,
 } ObjectType;
 
 typedef struct Object {
     ObjectType type;
     bool has_moved;
 } Object;
-
-// Constructors??
-#define Sand()  (Object){SAND, 0};
-#define Stone() (Object){STONE, 0};
 
 Color colorFromType(Object obj);
 

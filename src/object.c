@@ -7,6 +7,8 @@ Color colorFromType(Object obj) {
             return YELLOW;
         case STONE:
             return LIGHTGRAY;
+        case WATER:
+            return BLUE;
         default:
             return BLACK;
     }
