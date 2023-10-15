@@ -1,4 +1,5 @@
 #include <SDL2/SDL_keycode.h>
+#include <SDL2/SDL_render.h>
 #include <stdio.h>
 #include <SDL2/SDL.h>
 #include <stdlib.h>
@@ -41,7 +42,17 @@ void init_sim(void) {
     srand(time(NULL));
 }
 
+void swap(i32 x1, i32 y1, i32 x2, i32 y2) {
+    Object* obj1 = &GRID_AT(x1, y1);
+    Object* obj2 = &GRID_AT(x2, y2);
+    
+    Object temp = *obj1;
+    *obj1 = *obj2;
+    *obj2 = temp;
+}
+
 void step_sim(void) {
+    srand(time(NULL));
     for (i32 y = GRID_HEIGHT - 1; y >= 0; y--) {
         for (i32 x = GRID_WIDTH - 1; x >= 0; x--) {
             Object* obj = &grid[GRID_INDEX(x, y)];
@@ -63,31 +74,26 @@ void step_sim(void) {
                     Object* obj_down_right = &GRID_AT(x + 1, y); 
 
                     bool left_okay =  x != 0 && 
-                        obj_down_left->type == None &&
-                        obj_left->type == None;
+                        (obj_down_left->type == None || obj_down_left->type == WATER) &&
+                        (obj_left->type == None || obj_left->type == WATER);
                     bool right_okay =  x != GRID_WIDTH-1 && 
-                        obj_down_right->type == None &&
-                        obj_right->type == None;
+                        (obj_down_right->type == None || obj_down_right->type == WATER) &&
+                        (obj_right->type == None || obj_right->type == WATER);
 
                     if (obj_down->type == None) {
-                        *obj_down = *obj;
-                        CLEAR_GRID_AT(x, y);
+                        swap(x, y, x, y+1);
                     } else if (obj_down->type == WATER) {
-                        obj->type = WATER;
-                        obj_down->type = SAND;
+                        swap(x, y, x, y+1);
                     }
 
                     if (left_okay && right_okay) {
-                        if (rand()%2) {*obj_down_left = *obj;} 
-                        else {*obj_down_right = *obj;} 
+                        if (rand()%2) {swap(x, y, x-1, y+1);} 
+                        else {swap(x, y, x+1, y+1);} 
 
-                        CLEAR_GRID_AT(x, y);
                     } else if (left_okay) {
-                        *obj_down_left = *obj; 
-                        CLEAR_GRID_AT(x, y);
+                        swap(x, y, x-1, y+1);
                     } else if (right_okay) {
-                        *obj_down_right = *obj; 
-                        CLEAR_GRID_AT(x, y);
+                        swap(x, y, x+1, y+1);
                     }
                    
 
@@ -106,21 +112,6 @@ void step_sim(void) {
 
                     if (obj_down->type == None) {*obj_down = *obj; CLEAR_GRID_AT(x, y); break;}
 
-                    bool down_left_okay =  x != 0 && obj_down_left->type == None;
-                    bool down_right_okay =  x != GRID_WIDTH-1 && obj_down_right->type == None;
-
-                    if (down_left_okay && down_right_okay) {
-                        if (rand()%2) {*obj_down_left = *obj;}
-                        else {*obj_down_right = *obj;}
-                        CLEAR_GRID_AT(x, y);   
-                    } else if (down_left_okay) {
-                        *obj_down_left = *obj; 
-                        CLEAR_GRID_AT(x, y);
-                    } else if (down_right_okay) {
-                        *obj_down_right = *obj; 
-                        CLEAR_GRID_AT(x, y);
-                    }
-
                     Object* obj_left = &GRID_AT(x - 1, y);
                     Object* obj_right = &GRID_AT(x + 1, y);
 
@@ -131,12 +122,49 @@ void step_sim(void) {
                         if (rand()%2) {*obj_left = *obj;}
                         else {*obj_right = *obj;}
                         CLEAR_GRID_AT(x, y);
-                    } else if (left_okay) {
-                        *obj_left = *obj;
-                        CLEAR_GRID_AT(x, y);
-                    } else if (right_okay) {
-                        *obj_right = *obj;
-                        CLEAR_GRID_AT(x, y);
+                    } else if (rand() % 2) {
+                        if (left_okay) {
+                            *obj_left = *obj;
+                            CLEAR_GRID_AT(x, y);
+                        } else if (right_okay) {
+                            *obj_right = *obj;
+                            CLEAR_GRID_AT(x, y);
+                        }
+                    } else {
+                        if (right_okay) {
+                            *obj_right = *obj;
+                            CLEAR_GRID_AT(x, y);
+                        } else if (left_okay) {
+                            *obj_left = *obj;
+                            CLEAR_GRID_AT(x, y);
+                        }
+                    }
+
+
+                    bool down_left_okay =  x != 0 && obj_down_left->type == None;
+                    bool down_right_okay =  x != GRID_WIDTH-1 && obj_down_right->type == None;
+
+                    if (down_left_okay && down_right_okay) {
+                        if (rand()%2) {*obj_down_left = *obj;}
+                        else {*obj_down_right = *obj;}
+                        CLEAR_GRID_AT(x, y);   
+                    } else if (rand()%2) {
+                        if (down_left_okay) {
+                            *obj_down_left = *obj; 
+                            CLEAR_GRID_AT(x, y);
+                        } else if (down_right_okay) {
+                            *obj_down_right = *obj; 
+                            CLEAR_GRID_AT(x, y);
+                        }
+                    } else {
+                        if (down_right_okay) {
+                            *obj_down_right = *obj; 
+                            CLEAR_GRID_AT(x, y);
+                        } else if (down_left_okay) {
+                            *obj_down_left = *obj; 
+                            CLEAR_GRID_AT(x, y);
+                        }
+
                     }
 
                     break;
@@ -149,7 +177,6 @@ void step_sim(void) {
 }
 
 void handleMouseDrag(i32 x, i32 y) {
-    // if (x >= 0 && x < GRID_WIDTH && y >= 0 && y < GRID_HEIGHT) {
     if (x < 0 || x >= GRID_WIDTH || y < 0 || y >= GRID_HEIGHT) {
         return;
     }
@@ -164,7 +191,7 @@ void handleMouseDrag(i32 x, i32 y) {
                 continue;
             }
 
-            if (rand() % 7 == 0) {
+            if (rand() % 5 == 0) {
                 continue;
             }
 
@@ -236,6 +263,15 @@ int main(void) {
                     break;
                 }
                 case SDL_MOUSEMOTION: {
+                    SDL_SetRenderDrawColor(renderer, ColorParam(DARKGRAY));
+                    for (i32 y = -BRUSH_RADIUS; y <= BRUSH_RADIUS; ++y) {
+                        for (i32 x = -BRUSH_RADIUS; x <= BRUSH_RADIUS; ++x) {
+                            int distance_squared = x * x + y * y;
+                            if (distance_squared >= (BRUSH_RADIUS - 1) * (BRUSH_RADIUS - 1) && distance_squared <= BRUSH_RADIUS * BRUSH_RADIUS) {
+                                SDL_RenderDrawPoint(renderer, e.motion.x + x, e.motion.y + y);
+                            }
+                        }
+                    }
                     if (mouseDown) {
                         i32 x = e.motion.x / CELL_SIZE;
                         i32 y = e.motion.y / CELL_SIZE;
@@ -299,8 +335,10 @@ int main(void) {
             }
         }
 
+        SDL_RenderPresent(renderer);
         SDL_SetRenderDrawColor(renderer, ColorParam(BACKGROUND_COLOR));
         SDL_RenderClear(renderer);
+
 
         if (!paused) {
             step_sim();
@@ -308,7 +346,6 @@ int main(void) {
 
         // Start Drawing
         display(renderer);
-
         // End Drawing
         SDL_RenderPresent(renderer);
 
