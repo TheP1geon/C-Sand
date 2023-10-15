@@ -20,6 +20,7 @@
 
 #define FPS              240
 #define BACKGROUND_COLOR BLACK
+#define SPEED            10
 // __Constants
 
 // Macros
@@ -52,7 +53,6 @@ void swap(i32 x1, i32 y1, i32 x2, i32 y2) {
 }
 
 void step_sim(void) {
-    srand(time(NULL));
     for (i32 y = GRID_HEIGHT - 1; y >= 0; y--) {
         for (i32 x = GRID_WIDTH - 1; x >= 0; x--) {
             Object* obj = &grid[GRID_INDEX(x, y)];
@@ -103,72 +103,33 @@ void step_sim(void) {
                     break;
                 case WATER: {
                     if (y == GRID_HEIGHT - 1) {
-                        break;
+                        // Water is at the bottom, no need to check further
+                        continue;
                     }
 
-                    Object* obj_down = &GRID_AT(x, y + 1);
-                    Object* obj_down_left = &GRID_AT(x - 1, y + 1);
-                    Object* obj_down_right = &GRID_AT(x + 1, y + 1);
-
-                    if (obj_down->type == None) {*obj_down = *obj; CLEAR_GRID_AT(x, y); break;}
-
-                    Object* obj_left = &GRID_AT(x - 1, y);
-                    Object* obj_right = &GRID_AT(x + 1, y);
-
-                    bool left_okay =  x != 0 && obj_left->type == None;
-                    bool right_okay =  x != GRID_WIDTH-1 && obj_right->type == None;
-
-                    if (left_okay && right_okay) {
-                        if (rand()%2) {*obj_left = *obj;}
-                        else {*obj_right = *obj;}
-                        CLEAR_GRID_AT(x, y);
-                    } else if (rand() % 2) {
-                        if (left_okay) {
-                            *obj_left = *obj;
-                            CLEAR_GRID_AT(x, y);
-                        } else if (right_okay) {
-                            *obj_right = *obj;
-                            CLEAR_GRID_AT(x, y);
-                        }
+                    // Check if there's empty space beneath
+                    if (GRID_AT(x, y + 1).type == None) {
+                        swap(x, y, x, y + 1);
                     } else {
-                        if (right_okay) {
-                            *obj_right = *obj;
-                            CLEAR_GRID_AT(x, y);
+                        // No empty space beneath, check left and right
+                        bool left_okay = (x != 0) && GRID_AT(x - 1, y).type == None;
+                        bool right_okay = (x != GRID_WIDTH - 1) && GRID_AT(x + 1, y).type == None;
+
+                        if (left_okay && right_okay) {
+                            // Introduce a 60% chance of moving left and a 40% chance of moving right
+                            if (rand() % 10 < 6) {
+                                swap(x, y, x - 1, y);
+                            } else {
+                                swap(x, y, x + 1, y);
+                            }
                         } else if (left_okay) {
-                            *obj_left = *obj;
-                            CLEAR_GRID_AT(x, y);
+                            swap(x, y, x - 1, y);
+                        } else if (right_okay) {
+                            swap(x, y, x + 1, y);
                         }
                     }
-
-
-                    bool down_left_okay =  x != 0 && obj_down_left->type == None;
-                    bool down_right_okay =  x != GRID_WIDTH-1 && obj_down_right->type == None;
-
-                    if (down_left_okay && down_right_okay) {
-                        if (rand()%2) {*obj_down_left = *obj;}
-                        else {*obj_down_right = *obj;}
-                        CLEAR_GRID_AT(x, y);   
-                    } else if (rand()%2) {
-                        if (down_left_okay) {
-                            *obj_down_left = *obj; 
-                            CLEAR_GRID_AT(x, y);
-                        } else if (down_right_okay) {
-                            *obj_down_right = *obj; 
-                            CLEAR_GRID_AT(x, y);
-                        }
-                    } else {
-                        if (down_right_okay) {
-                            *obj_down_right = *obj; 
-                            CLEAR_GRID_AT(x, y);
-                        } else if (down_left_okay) {
-                            *obj_down_left = *obj; 
-                            CLEAR_GRID_AT(x, y);
-                        }
-
-                    }
-
-                    break;
                 }
+                    break;
                 default:
                     break;
             }
@@ -340,8 +301,10 @@ int main(void) {
         SDL_RenderClear(renderer);
 
 
-        if (!paused) {
-            step_sim();
+        for (i32 i = 0; i < SPEED; ++i) {
+            if (!paused) {
+                step_sim();
+            }
         }
 
         // Start Drawing
