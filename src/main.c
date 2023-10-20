@@ -15,12 +15,11 @@
 #define SCREEN_HEIGHT    700
 
 #define CELL_SIZE        2
-#define GRID_WIDTH       SCREEN_WIDTH / CELL_SIZE
-#define GRID_HEIGHT      SCREEN_HEIGHT / CELL_SIZE
+#define GRID_WIDTH       (SCREEN_WIDTH / CELL_SIZE)
+#define GRID_HEIGHT      (SCREEN_HEIGHT / CELL_SIZE)
 
 #define FPS              240
 #define BACKGROUND_COLOR BLACK
-#define SPEED            10
 // __Constants
 
 // Macros
@@ -30,6 +29,7 @@
 // __Macros
 
 Object grid[GRID_HEIGHT * GRID_WIDTH] = {};
+i32 indicies[GRID_HEIGHT * GRID_WIDTH] = {};
 ObjectType current_material = SAND;
 
 // Variables to track mouse state and previous position
@@ -37,10 +37,25 @@ bool mouseDown = false;
 i32 prevMouseX = -1;
 i32 prevMouseY = -1;
 
-i32 BRUSH_RADIUS = 7;
+i32 BRUSH_RADIUS = 15;
+
+void shuffle_indicies(void) {
+    for (i32 i = GRID_HEIGHT * GRID_WIDTH - 1; i > 0; i--) {
+        i32 j = rand() % (i + 1);
+        i32 temp = indicies[i];
+        indicies[i] = indicies[j];
+        indicies[j] = temp;
+    }
+}
 
 void init_sim(void) {
     srand(time(NULL));
+
+    for (i32 i = 0; i < GRID_HEIGHT * GRID_WIDTH; i++) {
+        indicies[i] = i;
+    }
+
+    shuffle_indicies();
 }
 
 void swap(i32 x1, i32 y1, i32 x2, i32 y2) {
@@ -53,89 +68,91 @@ void swap(i32 x1, i32 y1, i32 x2, i32 y2) {
 }
 
 void step_sim(void) {
-    for (i32 y = GRID_HEIGHT - 1; y >= 0; y--) {
-        for (i32 x = GRID_WIDTH - 1; x >= 0; x--) {
-            Object* obj = &grid[GRID_INDEX(x, y)];
-            
-            switch (obj->type) {
-                case None:
-                    break;
-                case SAND: {
-                    if (y == GRID_HEIGHT - 1) {
-                        break;
-                    }
+    shuffle_indicies();
+    for (i32 i = 0; i < GRID_HEIGHT * GRID_WIDTH; i++) {
+        i32 index = indicies[i];
+        i32 x = index % GRID_WIDTH; 
+        i32 y = index / GRID_WIDTH;
 
-                    Object* obj_down = &GRID_AT(x, y + 1); 
+        Object* obj = &GRID_AT(x, y);
+        
+        switch (obj->type) {
+            case None:
+                break;
+            case SAND: {
+                if (y == GRID_HEIGHT - 1) {
+                    continue;
+                }
 
-                    Object* obj_left = &GRID_AT(x - 1, y + 1); 
-                    Object* obj_down_left = &GRID_AT(x - 1, y); 
+                Object* obj_down = &GRID_AT(x, y + 1); 
 
-                    Object* obj_right = &GRID_AT(x + 1, y + 1); 
-                    Object* obj_down_right = &GRID_AT(x + 1, y); 
+                Object* obj_left = &GRID_AT(x - 1, y + 1); 
+                Object* obj_down_left = &GRID_AT(x - 1, y); 
 
-                    bool left_okay =  x != 0 && 
-                        (obj_down_left->type == None || obj_down_left->type == WATER) &&
-                        (obj_left->type == None || obj_left->type == WATER);
-                    bool right_okay =  x != GRID_WIDTH-1 && 
-                        (obj_down_right->type == None || obj_down_right->type == WATER) &&
-                        (obj_right->type == None || obj_right->type == WATER);
+                Object* obj_right = &GRID_AT(x + 1, y + 1); 
+                Object* obj_down_right = &GRID_AT(x + 1, y); 
 
-                    if (obj_down->type == None) {
-                        swap(x, y, x, y+1);
-                    } else if (obj_down->type == WATER) {
-                        swap(x, y, x, y+1);
-                    }
+                bool left_okay =  x != 0 && 
+                    (obj_down_left->type == None || obj_down_left->type == WATER) &&
+                    (obj_left->type == None || obj_left->type == WATER);
+
+                bool right_okay =  x != GRID_WIDTH-1 && 
+                    (obj_down_right->type == None || obj_down_right->type == WATER) &&
+                    (obj_right->type == None || obj_right->type == WATER);
+
+                if (obj_down->type == None || obj_down->type == WATER) {
+                    swap(x, y, x, y+1);
+                }
+
+                if (left_okay && right_okay) {
+                    if (rand()%2) {swap(x, y, x-1, y+1);} 
+                    else {swap(x, y, x+1, y+1);} 
+
+                } else if (left_okay) {
+                    swap(x, y, x - 1, y + 1);
+                } else if (right_okay) { 
+                    swap(x, y, x + 1, y + 1);
+                }
+               
+
+                break;
+            }
+            case STONE:
+                break;
+            case WATER: {
+                if (y == GRID_HEIGHT - 1) {
+                    // Water is at the bottom, no need to check further
+                    continue;
+                }
+
+                // Check if there's empty space beneath
+                if (GRID_AT(x, y + 1).type == None) {
+                    swap(x, y, x, y + 1);
+                } else {
+                    // No empty space beneath, check left and right
+                    bool left_okay = (x != 0) && GRID_AT(x - 1, y).type == None;
+                    bool right_okay = (x != GRID_WIDTH - 1) && GRID_AT(x + 1, y).type == None;
 
                     if (left_okay && right_okay) {
-                        if (rand()%2) {swap(x, y, x-1, y+1);} 
-                        else {swap(x, y, x+1, y+1);} 
-
-                    } else if (left_okay) {
-                        swap(x, y, x-1, y+1);
-                    } else if (right_okay) {
-                        swap(x, y, x+1, y+1);
-                    }
-                   
-
-                    break;
-                }
-                case STONE:
-                    break;
-                case WATER: {
-                    if (y == GRID_HEIGHT - 1) {
-                        // Water is at the bottom, no need to check further
-                        continue;
-                    }
-
-                    // Check if there's empty space beneath
-                    if (GRID_AT(x, y + 1).type == None) {
-                        swap(x, y, x, y + 1);
-                    } else {
-                        // No empty space beneath, check left and right
-                        bool left_okay = (x != 0) && GRID_AT(x - 1, y).type == None;
-                        bool right_okay = (x != GRID_WIDTH - 1) && GRID_AT(x + 1, y).type == None;
-
-                        if (left_okay && right_okay) {
-                            // Introduce a 60% chance of moving left and a 40% chance of moving right
-                            if (rand() % 10 < 6) {
-                                swap(x, y, x - 1, y);
-                            } else {
-                                swap(x, y, x + 1, y);
-                            }
-                        } else if (left_okay) {
+                        if (rand()%2) {
                             swap(x, y, x - 1, y);
-                        } else if (right_okay) {
+                        } else {
                             swap(x, y, x + 1, y);
                         }
+                    } else if (left_okay) {
+                        swap(x, y, x - 1, y);
+                    } else if (right_okay) {
+                        swap(x, y, x + 1, y);
                     }
                 }
-                    break;
-                default:
-                    break;
             }
+                break;
+            default:
+                break;
         }
     }
 }
+
 
 void handleMouseDrag(i32 x, i32 y) {
     if (x < 0 || x >= GRID_WIDTH || y < 0 || y >= GRID_HEIGHT) {
@@ -159,20 +176,23 @@ void handleMouseDrag(i32 x, i32 y) {
             Object* obj = &GRID_AT(x+c_x, y+c_y); 
             if (obj->type == None) {
                 obj->type = current_material;
+                obj->color = colorFromType(*obj);
             } else if (current_material == None && obj->type != None) {
                 obj->type = None;
+                obj->color = BACKGROUND_COLOR;
             }
         }
     }
 }
 
 void display(SDL_Renderer* renderer) {
-    for (i32 y = GRID_HEIGHT - 1; y >= 0; y--) {
-        for (i32 x = GRID_WIDTH - 1; x >= 0; x--) {
-            Color squareColor = colorFromType(grid[GRID_INDEX(x, y)]);
-            Rect r = {{x * CELL_SIZE, y * CELL_SIZE}, CELL_SIZE, CELL_SIZE, squareColor};
-            drawFillRect(renderer, r);
-        }
+    for (i32 i = 0; i < GRID_HEIGHT * GRID_WIDTH; i++) {
+        i32 index = indicies[i];
+        i32 x = index % GRID_WIDTH; 
+        i32 y = index / GRID_WIDTH;
+        Color squareColor = GRID_AT(x, y).color;
+        Rect r = {{x * CELL_SIZE, y * CELL_SIZE}, CELL_SIZE, CELL_SIZE, squareColor};
+        drawFillRect(renderer, r);
     }
 }
 
@@ -301,7 +321,7 @@ int main(void) {
         SDL_RenderClear(renderer);
 
 
-        for (i32 i = 0; i < SPEED; ++i) {
+        for (i32 i = 0; i < 2; ++i) {
             if (!paused) {
                 step_sim();
             }

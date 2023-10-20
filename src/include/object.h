@@ -14,6 +14,7 @@ typedef enum {
 typedef struct Object {
     ObjectType type;
     bool has_moved;
+    Color color;
 } Object;
 
 Color colorFromType(Object obj);
